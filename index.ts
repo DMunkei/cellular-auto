@@ -1,50 +1,3 @@
-const width = 800;
-const height = 800;
-const BOARD_ROW = 32;
-const BOARD_COL = BOARD_ROW;
-
-let app = document.getElementById("app") as HTMLCanvasElement;
-if (app == null) {
-  throw new Error(`Can't find canvas.`);
-}
-
-app.width = width;
-app.height = height;
-const CELL_WIDTH = app.width / BOARD_COL;
-const CELL_HEIGHT = app.height / BOARD_ROW;
-
-type Board = Array<Array<number>>;
-let board: Board = [];
-for (let r = 0; r < BOARD_ROW; ++r) {
-  board.push(new Array(BOARD_ROW).fill(0));
-}
-
-
-let ctx = app.getContext("2d") as CanvasRenderingContext2D;
-if (ctx === null) {
-  throw new Error(`can't get canvas context.`);
-}
-
-ctx.fillRect(0, 0, width, height);
-
-function render() {
-  ctx.fillStyle = "red";
-  for (let row = 0; row < BOARD_ROW; ++row) {
-    for (let col = 0; col < BOARD_COL; ++col) {
-      if (board[row][col] == 1){ 
-        const x = row * CELL_HEIGHT;
-        const y = col * CELL_WIDTH;
-        ctx.fillRect(x, y, CELL_WIDTH, CELL_HEIGHT);
-      }
-    }
-  }
-}
-
-//TODO: 
-// function generateNewBoard(currentBoard:Board, nextBoard:Board){
-//
-// }
-
 function drawCheckedBoard(ctx: CanvasRenderingContext2D) {
   ctx.strokeStyle = "white";
   for (let i = 0; i < CELL_HEIGHT + 1; ++i) {
@@ -61,17 +14,123 @@ function drawCheckedBoard(ctx: CanvasRenderingContext2D) {
   }
 }
 
+
+
+
+const width = 800;
+const height = 800;
+const BOARD_ROW = 32;
+const BOARD_COL = BOARD_ROW;
+
+const fillStates = ['#000000','#FF5050']
+
+let app = document.getElementById("app") as HTMLCanvasElement;
+if (app == null) {
+  throw new Error(`Can't find canvas.`);
+}
+
+app.width = width;
+app.height = height;
+const CELL_WIDTH = app.width / BOARD_COL;
+const CELL_HEIGHT = app.height / BOARD_ROW;
+
+type Board = Array<Array<number>>;
+function createBoard() {
+  let board: Board = [];
+  for (let r = 0; r < BOARD_ROW; ++r) {
+    board.push(new Array(BOARD_COL).fill(0));
+  }
+  return board;
+}
+let currentBoard: Board = createBoard();
+let nextBoard: Board = createBoard();
+
+let ctx = app.getContext("2d") as CanvasRenderingContext2D;
+if (ctx === null) {
+  throw new Error(`can't get canvas context.`);
+}
+
+ctx.fillRect(0, 0, width, height);
+
+function render(ctx:CanvasRenderingContext2D,board: Board) {
+  for (let row = 0; row < BOARD_ROW; ++row) {
+    for (let col = 0; col < BOARD_COL; ++col) {
+      const x = row * CELL_HEIGHT;
+      const y = col * CELL_WIDTH;
+      ctx.fillStyle = fillStates[board[row][col]];
+      ctx.fillRect(x, y, CELL_WIDTH, CELL_HEIGHT);
+    }
+  }
+}
+
+function countNeighbours(
+  board: Board,
+  neighbours:number[],
+  r0: number,
+  c0: number,
+) {
+  neighbours.fill(0);
+  for (let dr = -1; dr < 1; ++dr) {
+    for (let dc = -1; dc < 1; ++dc) {
+      if (dr != 0 || dc != 0) {
+        let r = r0 + dr;
+        let c = c0 + dc;
+        if (0 <= r && r <= BOARD_ROW) {
+          if (0 <= c && c <= BOARD_COL) {
+            if (board[r][c] == 1) {
+              neighbours[board[r][c]]++;
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+//NOTE: Rules
+// Any live cell with fewer than two live neighbours dies, as if caused by underpopulation.
+// Any live cell with two or three live neighbours lives on to the next generation.
+// Any live cell with more than three live neighbours dies, as if by overpopulation.
+// Any dead cell with exactly three live neighbours becomes a live cell, as if by reproduction.
+function generateNewBoard(currentBoard: Board, nextBoard: Board){
+  const DEAD: number = 0;
+  const ALIVE: number = 1;
+  const nbors:number[] = Array(2);
+  for (let row = 0; row < BOARD_ROW; ++row) {
+    for (let col = 0; col < BOARD_COL; ++col) {
+ countNeighbours(currentBoard,nbors, row, col);
+      console.log(nbors)
+      if (currentBoard[row][col] == DEAD) {
+        if (nbors[ALIVE] == 3) {
+          nextBoard[row][col] = 1;
+        }else {
+          nextBoard[row][col] = 0;
+        }
+      } else {
+        if (nbors[ALIVE] < 2) {
+          nextBoard[row][col] = 0;
+        } else if (nbors[ALIVE] == 2 || nbors[ALIVE] == 3) {
+          nextBoard[row][col] = 1;
+        } else if (nbors[ALIVE] > 3) {
+          nextBoard[row][col] = 0;
+        }
+      }
+    }
+  }
+}
+
 app.addEventListener("click", (e) => {
-  console.log(`E as ${e.offsetX} ${e.offsetY}`);
-  let x = Math.floor(e.offsetX/CELL_HEIGHT);
-  let y = Math.floor(e.offsetY/CELL_WIDTH);
-  console.log(x,y)
-  board[x][y] = 1;
-  render();
+  let x = Math.floor(e.offsetX / CELL_HEIGHT);
+  let y = Math.floor(e.offsetY / CELL_WIDTH);
+  currentBoard[x][y] = 1;
+  render(ctx, currentBoard);
 });
 
-let nextRender = document.getElementById('next') as HTMLButtonElement;
-nextRender.addEventListener('click', ()=>{
-  //TODO: Next generation board
-  render()
+let nextRender = document.getElementById("next") as HTMLButtonElement;
+nextRender.addEventListener("click", () => {
+  generateNewBoard(currentBoard, nextBoard);
+  [currentBoard, nextBoard] = [nextBoard, currentBoard];
+  render(ctx,currentBoard);
 });
+
+render(ctx,currentBoard);
