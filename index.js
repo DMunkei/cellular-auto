@@ -1,24 +1,73 @@
 "use strict";
 function drawCheckedBoard(ctx) {
-    ctx.strokeStyle = "white";
+    ctx.strokeStyle = "#000000";
     for (let i = 0; i < CELL_HEIGHT + 1; ++i) {
         ctx.beginPath();
-        ctx.moveTo(i * BOARD_ROW, 0);
-        ctx.lineTo(i * BOARD_ROW, height);
+        ctx.moveTo(i * CELL_HEIGHT, 0);
+        ctx.lineTo(i * CELL_HEIGHT, height);
         ctx.stroke();
     }
     for (let i = 0; i < CELL_WIDTH + 1; ++i) {
         ctx.beginPath();
-        ctx.moveTo(0, i * BOARD_ROW);
-        ctx.lineTo(width, i * BOARD_ROW);
+        ctx.moveTo(0, i * CELL_WIDTH);
+        ctx.lineTo(width, i * CELL_WIDTH);
         ctx.stroke();
     }
 }
 const width = 800;
 const height = 800;
-const BOARD_ROW = 32;
+const BOARD_ROW = 18;
 const BOARD_COL = BOARD_ROW;
-const fillStates = ['#000000', '#FF5050'];
+class Board {
+    constructor(rows, cols) {
+        this.rows = 0;
+        this.cols = 0;
+        this.cells = [];
+        this.rows = rows;
+        this.cols = cols;
+        this.generateBoard();
+    }
+    generateBoard() {
+        for (let r = 0; r < this.rows; ++r) {
+            let row = [];
+            for (let c = 0; c < this.cols; ++c) {
+                row.push({ state: 0 });
+            }
+            this.cells.push(row);
+        }
+    }
+    getCellState(row, col) {
+        return this.cells[row][col].state !== undefined
+            ? this.cells[row][col].state
+            : 0;
+    }
+    setCellState(row, col, state) {
+        this.cells[row][col].state = state;
+    }
+    inBounds(row, col) {
+        return row >= 0 && row < this.rows && col >= 0 && col < this.cols;
+    }
+    countAliveNeighbours(r0, c0) {
+        let result = 0;
+        for (let dr = -1; dr <= 1; ++dr)
+            for (let dc = -1; dc <= 1; ++dc) {
+                if (dr == 0 && dc == 0)
+                    continue;
+                if (!this.inBounds(dr + r0, dc + c0))
+                    continue;
+                result += this.getCellState(r0 + dr, c0 + dc) === 1 ? 1 : 0;
+            }
+        return result;
+    }
+    configureBoard(configuration) {
+        for (let i = 0; i < configuration.length; ++i) {
+            for (let j = 0; j < configuration[0].length; ++j) {
+                this.cells[i][j].state = configuration[i][j];
+            }
+        }
+    }
+}
+const fillStates = ["#505050", "#FF5050"];
 let app = document.getElementById("app");
 if (app == null) {
     throw new Error(`Can't find canvas.`);
@@ -27,15 +76,8 @@ app.width = width;
 app.height = height;
 const CELL_WIDTH = app.width / BOARD_COL;
 const CELL_HEIGHT = app.height / BOARD_ROW;
-function createBoard() {
-    let board = [];
-    for (let r = 0; r < BOARD_ROW; ++r) {
-        board.push(new Array(BOARD_COL).fill(0));
-    }
-    return board;
-}
-let currentBoard = createBoard();
-let nextBoard = createBoard();
+let currentBoard = new Board(BOARD_ROW, BOARD_COL);
+let nextBoard = new Board(BOARD_ROW, BOARD_COL);
 let ctx = app.getContext("2d");
 if (ctx === null) {
     throw new Error(`can't get canvas context.`);
@@ -46,26 +88,8 @@ function render(ctx, board) {
         for (let col = 0; col < BOARD_COL; ++col) {
             const x = row * CELL_HEIGHT;
             const y = col * CELL_WIDTH;
-            ctx.fillStyle = fillStates[board[row][col]];
+            ctx.fillStyle = fillStates[board.getCellState(row, col)];
             ctx.fillRect(x, y, CELL_WIDTH, CELL_HEIGHT);
-        }
-    }
-}
-function countNeighbours(board, neighbours, r0, c0) {
-    neighbours.fill(0);
-    for (let dr = -1; dr < 1; ++dr) {
-        for (let dc = -1; dc < 1; ++dc) {
-            if (dr != 0 || dc != 0) {
-                let r = r0 + dr;
-                let c = c0 + dc;
-                if (0 <= r && r <= BOARD_ROW) {
-                    if (0 <= c && c <= BOARD_COL) {
-                        if (board[r][c] == 1) {
-                            neighbours[board[r][c]]++;
-                        }
-                    }
-                }
-            }
         }
     }
 }
@@ -77,43 +101,93 @@ function countNeighbours(board, neighbours, r0, c0) {
 function generateNewBoard(currentBoard, nextBoard) {
     const DEAD = 0;
     const ALIVE = 1;
-    const nbors = Array(2);
     for (let row = 0; row < BOARD_ROW; ++row) {
         for (let col = 0; col < BOARD_COL; ++col) {
-            countNeighbours(currentBoard, nbors, row, col);
-            console.log(nbors);
-            if (currentBoard[row][col] == DEAD) {
-                if (nbors[ALIVE] == 3) {
-                    nextBoard[row][col] = 1;
-                }
-                else {
-                    nextBoard[row][col] = 0;
-                }
-            }
-            else {
-                if (nbors[ALIVE] < 2) {
-                    nextBoard[row][col] = 0;
-                }
-                else if (nbors[ALIVE] == 2 || nbors[ALIVE] == 3) {
-                    nextBoard[row][col] = 1;
-                }
-                else if (nbors[ALIVE] > 3) {
-                    nextBoard[row][col] = 0;
-                }
-            }
+            const aliveNeighbors = currentBoard.countAliveNeighbours(row, col);
+            let currentCellState = currentBoard.getCellState(row, col);
+            let nextCellState = currentCellState;
+            if (currentCellState == DEAD && aliveNeighbors == 3)
+                nextCellState = ALIVE; //reproduction
+            if (currentCellState == ALIVE && aliveNeighbors in [2, 3])
+                nextCellState = ALIVE; // next gen
+            if (currentCellState == ALIVE && aliveNeighbors < 2)
+                nextCellState = DEAD; //underpopulation
+            if (currentCellState == ALIVE && aliveNeighbors > 3)
+                nextCellState = DEAD; //overpopulation
+            nextBoard.setCellState(row, col, nextCellState);
         }
     }
 }
 app.addEventListener("click", (e) => {
     let x = Math.floor(e.offsetX / CELL_HEIGHT);
     let y = Math.floor(e.offsetY / CELL_WIDTH);
-    currentBoard[x][y] = 1;
+    currentBoard.setCellState(x, y, 1);
     render(ctx, currentBoard);
+    drawCheckedBoard(ctx);
 });
 let nextRender = document.getElementById("next");
+let play = document.getElementById("play");
+let stopbtn = document.getElementById("stop");
+let playbackSpeed = document.getElementById("playbackSpeed");
 nextRender.addEventListener("click", () => {
     generateNewBoard(currentBoard, nextBoard);
     [currentBoard, nextBoard] = [nextBoard, currentBoard];
     render(ctx, currentBoard);
+    drawCheckedBoard(ctx);
+});
+let playbackID = -1;
+play.addEventListener("click", () => {
+    console.log("doing work");
+    if (playbackID > -1)
+        return;
+    playbackID = setInterval(() => {
+        console.log(playbackSpeed.valueAsNumber * 500);
+        generateNewBoard(currentBoard, nextBoard);
+        [currentBoard, nextBoard] = [nextBoard, currentBoard];
+        render(ctx, currentBoard);
+        drawCheckedBoard(ctx);
+    }, playbackSpeed.valueAsNumber * 100);
+});
+stopbtn.addEventListener("click", () => {
+    clearInterval(playbackID);
+    playbackID = -1;
+    playbackSpeed.value = "0";
 });
 render(ctx, currentBoard);
+let configurations = [
+    [
+        [0, 0, 0],
+        [0, 0, 0],
+        [0, 0, 0],
+    ],
+    [
+        [1, 1, 1],
+        [0, 0, 1],
+        [0, 0, 0],
+    ],
+    [
+        [1, 1, 1],
+        [1, 0, 1],
+        [1, 1, 1],
+    ],
+    [
+        [1, 0, 0],
+        [0, 0, 0],
+        [0, 0, 0],
+    ],
+    [
+        [1, 1, 1],
+        [0, 0, 0],
+        [0, 0, 0],
+    ],
+];
+let expectedResults = [0, 4, 8, 1, 3];
+function testCountNeighbours(expected, configurations) {
+    let board = new Board(3, 3);
+    for (let i = 0; i < configurations.length; ++i) {
+        board.configureBoard(configurations[i]);
+        console.log(`Expected ${expected[i]}, found: ${board.countAliveNeighbours(1, 1)} \ninside of board: ${board}`);
+    }
+}
+drawCheckedBoard(ctx);
+testCountNeighbours(expectedResults, configurations);
