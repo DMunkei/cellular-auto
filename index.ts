@@ -14,15 +14,12 @@ function drawCheckedBoard(ctx: CanvasRenderingContext2D) {
   }
 }
 
-
-
-
 const width = 800;
 const height = 800;
 const BOARD_ROW = 32;
 const BOARD_COL = BOARD_ROW;
 
-const fillStates = ['#000000','#FF5050']
+const fillStates = ["#000000", "#FF5050"];
 
 let app = document.getElementById("app") as HTMLCanvasElement;
 if (app == null) {
@@ -52,7 +49,7 @@ if (ctx === null) {
 
 ctx.fillRect(0, 0, width, height);
 
-function render(ctx:CanvasRenderingContext2D,board: Board) {
+function render(ctx: CanvasRenderingContext2D, board: Board) {
   for (let row = 0; row < BOARD_ROW; ++row) {
     for (let col = 0; col < BOARD_COL; ++col) {
       const x = row * CELL_HEIGHT;
@@ -63,28 +60,25 @@ function render(ctx:CanvasRenderingContext2D,board: Board) {
   }
 }
 
-function countNeighbours(
-  board: Board,
-  neighbours:number[],
-  r0: number,
-  c0: number,
-) {
-  neighbours.fill(0);
-  for (let dr = -1; dr < 1; ++dr) {
-    for (let dc = -1; dc < 1; ++dc) {
+function countAliveNeighbours(board: Board, r0: number, c0: number) {
+  function inBounds(row:number, col:number){
+    return (0<=row && row < BOARD_ROW) && (0<=col && col< BOARD_COL);
+  }
+  let result: number = 0;
+  for (let dr = -1; dr <= 1; ++dr) {
+    for (let dc = -1; dc <= 1; ++dc) {
       if (dr != 0 || dc != 0) {
         let r = r0 + dr;
         let c = c0 + dc;
-        if (0 <= r && r <= BOARD_ROW) {
-          if (0 <= c && c <= BOARD_COL) {
-            if (board[r][c] == 1) {
-              neighbours[board[r][c]]++;
-            }
+        if (inBounds(r,c)){
+          if (board[r][c] == 1) {
+            result++;
           }
         }
       }
     }
   }
+  return result;
 }
 
 //NOTE: Rules
@@ -92,29 +86,19 @@ function countNeighbours(
 // Any live cell with two or three live neighbours lives on to the next generation.
 // Any live cell with more than three live neighbours dies, as if by overpopulation.
 // Any dead cell with exactly three live neighbours becomes a live cell, as if by reproduction.
-function generateNewBoard(currentBoard: Board, nextBoard: Board){
+function generateNewBoard(currentBoard: Board, nextBoard: Board) {
   const DEAD: number = 0;
   const ALIVE: number = 1;
-  const nbors:number[] = Array(2);
   for (let row = 0; row < BOARD_ROW; ++row) {
     for (let col = 0; col < BOARD_COL; ++col) {
- countNeighbours(currentBoard,nbors, row, col);
-      console.log(nbors)
-      if (currentBoard[row][col] == DEAD) {
-        if (nbors[ALIVE] == 3) {
-          nextBoard[row][col] = 1;
-        }else {
-          nextBoard[row][col] = 0;
-        }
-      } else {
-        if (nbors[ALIVE] < 2) {
-          nextBoard[row][col] = 0;
-        } else if (nbors[ALIVE] == 2 || nbors[ALIVE] == 3) {
-          nextBoard[row][col] = 1;
-        } else if (nbors[ALIVE] > 3) {
-          nextBoard[row][col] = 0;
-        }
-      }
+      const aliveNeighbors = countAliveNeighbours(currentBoard, row, col);
+      let currentCellState = currentBoard[row][col];
+      let nextCellState = currentCellState;
+      if (currentCellState == DEAD && aliveNeighbors == 3) nextCellState = ALIVE; //reproduction
+      if (currentCellState == ALIVE && aliveNeighbors in [2, 3]) nextCellState = ALIVE; // next gen
+      if (currentCellState == ALIVE && aliveNeighbors < 2) nextCellState = DEAD; //underpopulation
+      if (currentCellState == ALIVE && aliveNeighbors > 3) nextCellState = DEAD; //overpopulation
+      nextBoard[row][col] = nextCellState;
     }
   }
 }
@@ -130,7 +114,46 @@ let nextRender = document.getElementById("next") as HTMLButtonElement;
 nextRender.addEventListener("click", () => {
   generateNewBoard(currentBoard, nextBoard);
   [currentBoard, nextBoard] = [nextBoard, currentBoard];
-  render(ctx,currentBoard);
+  render(ctx, currentBoard);
 });
 
-render(ctx,currentBoard);
+render(ctx, currentBoard);
+
+let boards: Board[] = [
+  [
+    [0, 0, 0],
+    [0, 0, 0],
+    [0, 0, 0],
+  ],
+  [
+    [1, 1, 1],
+    [0, 0, 0],
+    [0, 0, 1],
+  ],
+  [
+    [1, 1, 1],
+    [1, 0, 1],
+    [1, 1, 1],
+  ],
+  [
+    [1, 0, 0],
+    [0, 0, 0],
+    [0, 0, 0],
+  ],
+  [
+    [1, 0, 0],
+    [1, 0, 0],
+    [1, 0, 0],
+  ],
+];
+let expectedResults = [0, 4, 8, 1, 3];
+
+function testCountNeighbours(boards: Board[], expected: number[]) {
+  for (let i = 0; i < boards.length; ++i) {
+    let x = countAliveNeighbours(boards[i], 1, 1);
+    console.log(
+      `Expected ${expected[i]}, found: ${x} \ninside of board: ${boards[i]}`,
+    );
+  }
+}
+testCountNeighbours(boards, expectedResults);
