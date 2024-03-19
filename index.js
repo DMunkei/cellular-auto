@@ -1,4 +1,11 @@
 "use strict";
+function getElementOrError(id) {
+    let element = document.getElementById(`${id}`);
+    if (element === null) {
+        throw new Error(`Can't find element ${element}.`);
+    }
+    return element;
+}
 function drawCheckedBoard(ctx) {
     ctx.strokeStyle = "#000000";
     for (let i = 0; i < CELL_HEIGHT + 1; ++i) {
@@ -14,38 +21,54 @@ function drawCheckedBoard(ctx) {
         ctx.stroke();
     }
 }
+const ALIVE = 1;
+const DEAD = 0;
 const width = 800;
 const height = 800;
 const BOARD_ROW = 18;
 const BOARD_COL = BOARD_ROW;
 class Board {
-    constructor(rows, cols) {
+    constructor(rows, cols, toroidal = false) {
         this.rows = 0;
-        this.cols = 0;
+        this.columns = 0;
         this.cells = [];
+        this.toroidalBoard = false;
         this.rows = rows;
-        this.cols = cols;
+        this.columns = cols;
+        this.toroidalBoard = toroidal;
         this.generateBoard();
     }
     generateBoard() {
         for (let r = 0; r < this.rows; ++r) {
             let row = [];
-            for (let c = 0; c < this.cols; ++c) {
-                row.push({ state: 0 });
+            for (let c = 0; c < this.columns; ++c) {
+                row.push(0);
             }
             this.cells.push(row);
         }
     }
     getCellState(row, col) {
-        return this.cells[row][col].state !== undefined
-            ? this.cells[row][col].state
-            : 0;
+        if (this.toroidalBoard) {
+            row = this.posmod(row, this.rows);
+            col = this.posmod(col, this.columns);
+        }
+        else {
+            if (!this.inBounds(row, col))
+                return DEAD;
+        }
+        return this.cells[row][col] == 1 ? 1 : 0;
+    }
+    posmod(n, m) {
+        return (n % m + m) % m;
+    }
+    wrapAround(cell) {
+        return cell % this.rows == 0 ? 0 : cell;
     }
     setCellState(row, col, state) {
-        this.cells[row][col].state = state;
+        this.cells[row][col] = state;
     }
     inBounds(row, col) {
-        return row >= 0 && row < this.rows && col >= 0 && col < this.cols;
+        return row >= 0 && row < this.rows && col >= 0 && col < this.columns;
     }
     countAliveNeighbours(r0, c0) {
         let result = 0;
@@ -53,31 +76,28 @@ class Board {
             for (let dc = -1; dc <= 1; ++dc) {
                 if (dr == 0 && dc == 0)
                     continue;
-                if (!this.inBounds(dr + r0, dc + c0))
-                    continue;
-                result += this.getCellState(r0 + dr, c0 + dc) === 1 ? 1 : 0;
+                const nextX = r0 + dr;
+                const nextY = c0 + dc;
+                result += this.getCellState(nextX, nextY) === ALIVE ? ALIVE : DEAD;
             }
         return result;
     }
     configureBoard(configuration) {
         for (let i = 0; i < configuration.length; ++i) {
             for (let j = 0; j < configuration[0].length; ++j) {
-                this.cells[i][j].state = configuration[i][j];
+                this.cells[i][j] = configuration[i][j];
             }
         }
     }
 }
 const fillStates = ["#505050", "#FF5050"];
-let app = document.getElementById("app");
-if (app == null) {
-    throw new Error(`Can't find canvas.`);
-}
+let app = getElementOrError('app');
 app.width = width;
 app.height = height;
 const CELL_WIDTH = app.width / BOARD_COL;
 const CELL_HEIGHT = app.height / BOARD_ROW;
-let currentBoard = new Board(BOARD_ROW, BOARD_COL);
-let nextBoard = new Board(BOARD_ROW, BOARD_COL);
+let currentBoard = new Board(BOARD_ROW, BOARD_COL, true);
+let nextBoard = new Board(BOARD_ROW, BOARD_COL, true);
 let ctx = app.getContext("2d");
 if (ctx === null) {
     throw new Error(`can't get canvas context.`);
@@ -99,8 +119,6 @@ function render(ctx, board) {
 // Any live cell with more than three live neighbours dies, as if by overpopulation.
 // Any dead cell with exactly three live neighbours becomes a live cell, as if by reproduction.
 function generateNewBoard(currentBoard, nextBoard) {
-    const DEAD = 0;
-    const ALIVE = 1;
     for (let row = 0; row < BOARD_ROW; ++row) {
         for (let col = 0; col < BOARD_COL; ++col) {
             const aliveNeighbors = currentBoard.countAliveNeighbours(row, col);
@@ -125,11 +143,12 @@ app.addEventListener("click", (e) => {
     render(ctx, currentBoard);
     drawCheckedBoard(ctx);
 });
-let nextRender = document.getElementById("next");
-let play = document.getElementById("play");
-let stopbtn = document.getElementById("stop");
-let playbackSpeed = document.getElementById("playbackSpeed");
-nextRender.addEventListener("click", () => {
+let next = getElementOrError("next");
+let play = getElementOrError("play");
+let drawbtn = getElementOrError("draw");
+let stopbtn = getElementOrError("stop");
+let playbackSpeed = getElementOrError("playbackSpeed");
+next.addEventListener("click", () => {
     generateNewBoard(currentBoard, nextBoard);
     [currentBoard, nextBoard] = [nextBoard, currentBoard];
     render(ctx, currentBoard);
@@ -137,11 +156,9 @@ nextRender.addEventListener("click", () => {
 });
 let playbackID = -1;
 play.addEventListener("click", () => {
-    console.log("doing work");
     if (playbackID > -1)
         return;
     playbackID = setInterval(() => {
-        console.log(playbackSpeed.valueAsNumber * 500);
         generateNewBoard(currentBoard, nextBoard);
         [currentBoard, nextBoard] = [nextBoard, currentBoard];
         render(ctx, currentBoard);
