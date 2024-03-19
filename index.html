@@ -7,11 +7,38 @@
     <link href="main.css" rel="stylesheet" />
   </head>
   <body>
-      <button id="next">next</button>
-      <button id="play">play</button>
-      <button id="stop">stop</button>
-      <input type="range" id="playbackSpeed" name="speed" min="1" max="5" />
-      <label for="speed">PlaybackSpeed</label>
+      <div class="container">
+        <fieldset>
+          <legend>Playback</legend>
+          <div>
+            <button id="play" name="playButton">Play</button>
+            <button name="stopButton" id="stop"/>Stop</button>
+            <button id="next">next</button>
+        </div>
+      </fieldset>
+      <fieldset>
+        <label for="draw">Draw</label>
+        <input  type="radio" id="draw" name="draw" value="draw"/>
+        <label for="erase">Erase</label>
+        <input name="erase" type="radio" id="erase" value="erase"/>
+      </fieldset>
+      <fieldset>
+        <legend>Board type:</legend>
+        <div>
+          <label for="wrap">Wrap</label>
+          <input name="wrap" type="radio" id="no-wrap" value="wrap" />
+          <label for="toroidal">Toroidal</label>
+          <input name="toroidal" type="radio" id="toroidal" value="toroidal" />
+        </div>
+        <div>
+
+        </div>
+      </fieldset>
+      <fieldset>
+        <label for="speed">PlaybackSpeed</label>
+        <input type="range" id="playbackSpeed" name="speed" min="1" max="5" />
+      </fieldset>
+    </div>
       <h1 class="item">Cellular Automaton</h1>
       <canvas class="item" id="app"></canvas>
       <script class="item" src="index.js"></script>

@@ -9,3 +9,18 @@ body{
 .item {
 
 }
+p,
+label {
+  font:
+    2rem 'Fira Sans',
+    sans-serif;
+}
+
+input {
+  margin: 0.4rem;
+}
+.container{
+  display: flex:;
+  justify-content:left;
+
+} 
